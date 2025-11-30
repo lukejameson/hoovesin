@@ -213,6 +213,21 @@
       <p class="mt-1">
         Overnight window: 6pm - 7am • Auto-refreshes every 30 min
       </p>
+      <p class="mt-2">
+        Built by <a
+          href="https://lukejameson.co.uk"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-slate-500 hover:text-slate-400 underline">Luke Jameson</a
+        >
+        •
+        <a
+          href="https://github.com/lukejameson/hoovesin"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-slate-500 hover:text-slate-400 underline">GitHub</a
+        >
+      </p>
     </footer>
   </div>
 </main>

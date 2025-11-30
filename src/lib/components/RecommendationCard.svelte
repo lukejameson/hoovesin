@@ -41,7 +41,7 @@
     {#if isStables}
       🏠
     {:else}
-      🐴
+      🐎
     {/if}
   </div>
 
