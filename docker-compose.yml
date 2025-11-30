@@ -9,7 +9,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
     networks:
-      - traefik-net
+      - web
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.hoovesin.rule=Host(`hoovesin.com`)'
@@ -21,7 +21,7 @@ services:
       - 'traefik.http.routers.hoovesin-http.entrypoints=web'
       - 'traefik.http.routers.hoovesin-http.middlewares=redirect-to-https'
       - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
-      - 'traefik.http.routers.seas-gg.middlewares=security-headers@docker'
+      - 'traefik.http.routers.hoovesin.middlewares=security-headers@docker'
 
 networks:
   web:
