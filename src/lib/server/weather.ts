@@ -12,8 +12,13 @@ const CACHE_TTL = 30 * 60 * 1000;
 // Rain threshold in mm
 const RAIN_THRESHOLD = 0.1;
 
-// Wind gust warning threshold in km/h
-const WIND_GUST_THRESHOLD = 50;
+// Wind gust warning threshold in mph
+const WIND_GUST_THRESHOLD = 31;
+
+// Convert km/h to mph
+function kmhToMph(kmh: number): number {
+  return kmh * 0.621371;
+}
 
 interface OpenMeteoResponse {
   hourly: {
@@ -116,8 +121,8 @@ function processWeatherData(
     // Filter to only overnight hours (6pm - 7am)
     if (time >= start && time <= end) {
       const precipitation = data.hourly.precipitation[i] || 0;
-      const windSpeed = data.hourly.wind_speed_10m[i] || 0;
-      const windGust = data.hourly.wind_gusts_10m[i] || 0;
+      const windSpeed = kmhToMph(data.hourly.wind_speed_10m[i] || 0);
+      const windGust = kmhToMph(data.hourly.wind_gusts_10m[i] || 0);
       const hasRain = precipitation > RAIN_THRESHOLD;
 
       const hourStr = formatHour(data.hourly.time[i]);
@@ -126,8 +131,8 @@ function processWeatherData(
         time: data.hourly.time[i],
         hour: hourStr,
         precipitation,
-        windSpeed,
-        windGust,
+        windSpeed: Math.round(windSpeed),
+        windGust: Math.round(windGust),
         hasRain,
       });
 
@@ -149,8 +154,8 @@ function processWeatherData(
     recommendation,
     rainPredicted,
     totalRainMm: Math.round(totalRain * 10) / 10,
-    peakWindSpeed: Math.round(peakWindSpeed * 10) / 10,
-    peakWindGust: Math.round(peakWindGust * 10) / 10,
+    peakWindSpeed: Math.round(peakWindSpeed),
+    peakWindGust: Math.round(peakWindGust),
     windWarning,
     rainHours,
     hourly: hourlyData,

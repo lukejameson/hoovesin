@@ -10,6 +10,25 @@
   let { totalRainMm, peakWindSpeed, peakWindGust, fetchedAt, cached }: Props =
     $props();
 
+  // Beaufort scale based on wind speed in mph
+  function getBeaufort(mph: number): { scale: number; description: string } {
+    if (mph < 1) return { scale: 0, description: 'Calm' };
+    if (mph <= 3) return { scale: 1, description: 'Light air' };
+    if (mph <= 7) return { scale: 2, description: 'Light breeze' };
+    if (mph <= 12) return { scale: 3, description: 'Gentle breeze' };
+    if (mph <= 18) return { scale: 4, description: 'Moderate breeze' };
+    if (mph <= 24) return { scale: 5, description: 'Fresh breeze' };
+    if (mph <= 31) return { scale: 6, description: 'Strong breeze' };
+    if (mph <= 38) return { scale: 7, description: 'High wind' };
+    if (mph <= 46) return { scale: 8, description: 'Gale' };
+    if (mph <= 54) return { scale: 9, description: 'Strong gale' };
+    if (mph <= 63) return { scale: 10, description: 'Storm' };
+    if (mph <= 72) return { scale: 11, description: 'Violent storm' };
+    return { scale: 12, description: 'Hurricane' };
+  }
+
+  const beaufort = $derived(getBeaufort(peakWindGust));
+
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString('en-GB', {
@@ -42,7 +61,7 @@
     <div class="text-slate-400 text-sm mb-1">Peak Wind</div>
     <div class="text-2xl font-bold text-slate-100">
       {peakWindSpeed}
-      <span class="text-sm font-normal text-slate-400">km/h</span>
+      <span class="text-sm font-normal text-slate-400">mph</span>
     </div>
   </div>
 
@@ -50,12 +69,15 @@
   <div class="glass-card p-4 text-center">
     <div class="text-slate-400 text-sm mb-1">Peak Gusts</div>
     <div
-      class="text-2xl font-bold {peakWindGust > 50
+      class="text-2xl font-bold {peakWindGust > 31
         ? 'text-yellow-400'
         : 'text-slate-100'}"
     >
-      {peakWindGust}
-      <span class="text-sm font-normal text-slate-400">km/h</span>
+      {Math.round(peakWindGust)}
+      <span class="text-sm font-normal text-slate-400">mph</span>
+    </div>
+    <div class="text-xs text-slate-500 mt-1">
+      Force {beaufort.scale} · {beaufort.description}
     </div>
   </div>
 

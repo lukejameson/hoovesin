@@ -95,15 +95,15 @@
               <div class="hidden sm:flex items-center gap-4 text-sm">
                 <div class="text-slate-400">
                   <span class="text-slate-500">Wind:</span>
-                  {hour.windSpeed}km/h
+                  {Math.round(hour.windSpeed)}mph
                 </div>
                 <div
-                  class={hour.windGust > 50
+                  class={hour.windGust > 31
                     ? 'text-yellow-400'
                     : 'text-slate-400'}
                 >
                   <span class="text-slate-500">Gust:</span>
-                  {hour.windGust}km/h
+                  {Math.round(hour.windGust)}mph
                 </div>
               </div>
 
@@ -112,11 +112,12 @@
                 class="flex sm:hidden items-center gap-3 text-xs text-slate-400"
               >
                 <span
-                  >{hour.windSpeed}<span class="text-slate-600">km/h</span
+                  >{Math.round(hour.windSpeed)}<span class="text-slate-600"
+                    >mph</span
                   ></span
                 >
-                <span class={hour.windGust > 50 ? 'text-yellow-400' : ''}>
-                  💨{hour.windGust}
+                <span class={hour.windGust > 31 ? 'text-yellow-400' : ''}>
+                  💨{Math.round(hour.windGust)}
                 </span>
               </div>
             </div>

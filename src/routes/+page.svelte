@@ -128,6 +128,7 @@
         rainPredicted={weather.rainPredicted}
         windWarning={weather.windWarning}
         rainHours={weather.rainHours}
+        peakWindGust={weather.peakWindGust}
       />
 
       <!-- Stats Grid -->
