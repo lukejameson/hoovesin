@@ -21,7 +21,8 @@ services:
       - 'traefik.http.routers.hoovesin-http.entrypoints=web'
       - 'traefik.http.routers.hoovesin-http.middlewares=redirect-to-https'
       - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+      - 'traefik.http.routers.seas-gg.middlewares=security-headers@docker'
 
 networks:
-  traefik-net:
+  web:
     external: true
