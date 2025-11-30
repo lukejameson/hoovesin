@@ -1,0 +1,27 @@
+services:
+  hoovesin:
+    image: ghcr.io/lukejameson/hoovesin:latest
+    container_name: hoovesin
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    networks:
+      - traefik-net
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.hoovesin.rule=Host(`hoovesin.com`)'
+      - 'traefik.http.routers.hoovesin.entrypoints=websecure'
+      - 'traefik.http.routers.hoovesin.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.hoovesin.loadbalancer.server.port=3000'
+      # HTTP to HTTPS redirect
+      - 'traefik.http.routers.hoovesin-http.rule=Host(`hoovesin.com`)'
+      - 'traefik.http.routers.hoovesin-http.entrypoints=web'
+      - 'traefik.http.routers.hoovesin-http.middlewares=redirect-to-https'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+
+networks:
+  traefik-net:
+    external: true
