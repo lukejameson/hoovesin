@@ -44,6 +44,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Copy docker-compose.yml to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          source: 'docker-compose.yml'
+          target: '~/docker-apps/hoovesin'
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
         with:
