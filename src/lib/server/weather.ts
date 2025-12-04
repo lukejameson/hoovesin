@@ -146,7 +146,16 @@ function processWeatherData(
     }
   }
 
-  const rainPredicted = rainHours.length > 0;
+  // Balanced approach: multiple factors trigger stables recommendation
+  // - More than 4 hours of any rain, OR
+  // - More than 5mm total rain, OR
+  // - Sustained wind over 40mph, OR
+  // - Combined moderate conditions (>2mm rain AND wind >25mph)
+  const rainPredicted = 
+    rainHours.length > 4 || 
+    totalRain > 5 || 
+    peakWindSpeed > 40 || 
+    (totalRain > 2 && peakWindSpeed > 25);
   const windWarning = peakWindGust > WIND_GUST_THRESHOLD;
   const recommendation = rainPredicted ? 'stables' : 'paddock';
 
