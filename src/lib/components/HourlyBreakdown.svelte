@@ -3,9 +3,11 @@
 
   interface Props {
     hourly: HourlyData[];
+    overnightStart: string;
+    overnightEnd: string;
   }
 
-  let { hourly }: Props = $props();
+  let { hourly, overnightStart, overnightEnd }: Props = $props();
 
   let isExpanded = $state(false);
 </script>
@@ -31,7 +33,7 @@
         />
       </svg>
       <span class="font-medium text-slate-200">Hourly Breakdown</span>
-      <span class="text-sm text-slate-500">6pm - 7am</span>
+      <span class="text-sm text-slate-500">{overnightStart} - {overnightEnd}</span>
     </div>
     <svg
       class="w-5 h-5 text-slate-400 transition-transform {isExpanded

@@ -3,7 +3,7 @@
   import RecommendationCard from '$lib/components/RecommendationCard.svelte';
   import RefreshButton from '$lib/components/RefreshButton.svelte';
   import StatsGrid from '$lib/components/StatsGrid.svelte';
-  import type { WeatherResult } from '$lib/server/weather';
+  import type { WeatherResult, HorseHardiness } from '$lib/server/weather';
   import { onMount } from 'svelte';
 
   interface Props {
@@ -20,11 +20,67 @@
   let canRefreshNow = $state(data.canRefresh);
   let error = $state(data.error);
   let isLoading = $state(false);
+  let hardiness = $state<HorseHardiness>('normal');
+
+  // Hardiness thresholds (must match server)
+  const THRESHOLDS = {
+    hardy: {
+      maxRainHours: 8,
+      maxTotalRain: 15,
+      maxSustainedWind: 50,
+      combinedRainThreshold: 8,
+      combinedWindThreshold: 35,
+      windGustThreshold: 65,
+    },
+    normal: {
+      maxRainHours: 4,
+      maxTotalRain: 5,
+      maxSustainedWind: 40,
+      combinedRainThreshold: 2,
+      combinedWindThreshold: 25,
+      windGustThreshold: 55,
+    },
+    soft: {
+      maxRainHours: 2,
+      maxTotalRain: 2,
+      maxSustainedWind: 30,
+      combinedRainThreshold: 1,
+      combinedWindThreshold: 20,
+      windGustThreshold: 45,
+    },
+  };
+
+  // Calculate recommendation based on hardiness
+  const computedRecommendation = $derived.by(() => {
+    if (!weather) return null;
+    const t = THRESHOLDS[hardiness];
+    const rainPredicted = 
+      weather.rainHours.length > t.maxRainHours || 
+      weather.totalRainMm > t.maxTotalRain || 
+      weather.peakWindSpeed > t.maxSustainedWind || 
+      (weather.totalRainMm > t.combinedRainThreshold && weather.peakWindSpeed > t.combinedWindThreshold);
+    const windWarning = weather.peakWindGust > t.windGustThreshold;
+    const recommendation = rainPredicted ? 'stables' : 'paddock';
+    return { recommendation, rainPredicted, windWarning } as const;
+  });
 
   // Auto-refresh interval (30 minutes)
   const AUTO_REFRESH_INTERVAL = 30 * 60 * 1000;
 
+  function handleHardinessChange(newHardiness: HorseHardiness) {
+    hardiness = newHardiness;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('horseHardiness', newHardiness);
+    }
+  }
+
   onMount(() => {
+    // Load hardiness from localStorage
+    const savedHardiness = localStorage.getItem('horseHardiness');
+    if (savedHardiness && ['hardy', 'normal', 'soft'].includes(savedHardiness)) {
+      hardiness = savedHardiness as HorseHardiness;
+    }
+
     // Auto-refresh every 30 minutes
     const interval = setInterval(async () => {
       await silentRefresh();
@@ -121,14 +177,16 @@
           Try Again
         </button>
       </div>
-    {:else if weather}
-      <!-- Recommendation Card -->
+    {:else if weather && computedRecommendation}
+      <!-- Recommendation Card (with hardiness dropdown) -->
       <RecommendationCard
-        recommendation={weather.recommendation}
-        rainPredicted={weather.rainPredicted}
-        windWarning={weather.windWarning}
+        recommendation={computedRecommendation.recommendation}
+        rainPredicted={computedRecommendation.rainPredicted}
+        windWarning={computedRecommendation.windWarning}
         rainHours={weather.rainHours}
         peakWindGust={weather.peakWindGust}
+        hardiness={hardiness}
+        onHardinessChange={handleHardinessChange}
       />
 
       <!-- Stats Grid -->
@@ -145,7 +203,11 @@
 
       <!-- Hourly Breakdown -->
       {#if weather.hourly && weather.hourly.length > 0}
-        <HourlyBreakdown hourly={weather.hourly} />
+        <HourlyBreakdown 
+          hourly={weather.hourly}
+          overnightStart={weather.overnightStart}
+          overnightEnd={weather.overnightEnd}
+        />
       {/if}
 
       <!-- Refresh Button -->
@@ -214,7 +276,7 @@
     <footer class="text-center text-slate-600 text-xs mt-8">
       <p>Weather data from Open-Meteo • Location: Guernsey</p>
       <p class="mt-1">
-        Overnight window: 6pm - 7am • Auto-refreshes every 30 min
+        Overnight window: sunset to sunrise • Auto-refreshes every 30 min
       </p>
       <p class="mt-2">
         Built by <a

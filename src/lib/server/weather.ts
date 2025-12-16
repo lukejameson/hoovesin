@@ -12,8 +12,44 @@ const CACHE_TTL = 30 * 60 * 1000;
 // Rain threshold in mm
 const RAIN_THRESHOLD = 0.1;
 
-// Wind gust warning threshold in mph
-const WIND_GUST_THRESHOLD = 31;
+// Horse hardiness types and thresholds
+export type HorseHardiness = 'hardy' | 'normal' | 'soft';
+
+interface WeatherThresholds {
+  maxRainHours: number;
+  maxTotalRain: number; // mm
+  maxSustainedWind: number; // mph
+  combinedRainThreshold: number; // mm
+  combinedWindThreshold: number; // mph
+  windGustThreshold: number; // mph
+}
+
+const THRESHOLDS: Record<HorseHardiness, WeatherThresholds> = {
+  hardy: {
+    maxRainHours: 8,           // Tolerates prolonged rain
+    maxTotalRain: 15,          // Can handle heavy rain
+    maxSustainedWind: 50,      // Very wind-tolerant
+    combinedRainThreshold: 8,  // Needs both to be significant
+    combinedWindThreshold: 35,
+    windGustThreshold: 65,     // High gust tolerance
+  },
+  normal: {
+    maxRainHours: 4,           // Current default setting
+    maxTotalRain: 5,           // Current default setting
+    maxSustainedWind: 40,      // Current default setting
+    combinedRainThreshold: 2,  // Current default setting
+    combinedWindThreshold: 25, // Current default setting
+    windGustThreshold: 55,     // Moderate gust tolerance
+  },
+  soft: {
+    maxRainHours: 2,           // Minimal rain tolerance
+    maxTotalRain: 2,           // Light rain triggers stables
+    maxSustainedWind: 30,      // Lower wind tolerance
+    combinedRainThreshold: 1,  // Any rain + moderate wind
+    combinedWindThreshold: 20,
+    windGustThreshold: 45,     // Conservative on gusts
+  },
+};
 
 // Convert km/h to mph
 function kmhToMph(kmh: number): number {
@@ -27,6 +63,11 @@ interface OpenMeteoResponse {
     wind_speed_10m: number[];
     wind_gusts_10m: number[];
     temperature_2m: number[];
+  };
+  daily: {
+    time: string[];
+    sunrise: string[];
+    sunset: string[];
   };
 }
 
@@ -44,35 +85,99 @@ export interface WeatherResult {
   minTemp: number;
   maxTemp: number;
   avgTemp: number;
+  overnightStart: string;
+  overnightEnd: string;
 }
 
-function getOvernightWindow(): { start: Date; end: Date } {
+// Get date range for API call (we need today and tomorrow to cover overnight)
+function getDateRange(): { startDate: string; endDate: string } {
   const now = new Date();
-  const today6pm = new Date(now);
-  today6pm.setHours(18, 0, 0, 0);
-
-  const tomorrow7am = new Date(now);
-  tomorrow7am.setDate(tomorrow7am.getDate() + 1);
-  tomorrow7am.setHours(7, 0, 0, 0);
-
-  // If it's before 6pm, use today's 6pm to tomorrow's 7am
-  // If it's after 7am but before 6pm, use today's 6pm to tomorrow's 7am
-  // If it's between 6pm and midnight, use today's 6pm to tomorrow's 7am
-  // If it's between midnight and 7am, use yesterday's 6pm to today's 7am
-
-  if (now.getHours() < 7) {
-    // Between midnight and 7am - use yesterday's 6pm to today's 7am
-    const yesterday6pm = new Date(now);
-    yesterday6pm.setDate(yesterday6pm.getDate() - 1);
-    yesterday6pm.setHours(18, 0, 0, 0);
-
-    const today7am = new Date(now);
-    today7am.setHours(7, 0, 0, 0);
-
-    return { start: yesterday6pm, end: today7am };
+  const today = now.toISOString().split('T')[0];
+  
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  
+  // If before sunrise, we need yesterday too
+  if (now.getHours() < 9) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return { startDate: yesterday.toISOString().split('T')[0], endDate: today };
   }
+  
+  return { startDate: today, endDate: tomorrowStr };
+}
 
-  return { start: today6pm, end: tomorrow7am };
+// Calculate overnight window from actual sunset/sunrise times
+function getOvernightWindowFromSunTimes(
+  daily: { time: string[]; sunrise: string[]; sunset: string[] }
+): { start: Date; end: Date; startHour: string; endHour: string } {
+  const now = new Date();
+  
+  // Find today's and tomorrow's sun times
+  let todaySunset: Date | null = null;
+  let tomorrowSunrise: Date | null = null;
+  let yesterdaySunset: Date | null = null;
+  let todaySunrise: Date | null = null;
+  
+  const todayStr = now.toISOString().split('T')[0];
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  
+  for (let i = 0; i < daily.time.length; i++) {
+    const date = daily.time[i];
+    if (date === todayStr) {
+      todaySunset = new Date(daily.sunset[i]);
+      todaySunrise = new Date(daily.sunrise[i]);
+    } else if (date === tomorrowStr) {
+      tomorrowSunrise = new Date(daily.sunrise[i]);
+    } else if (date === yesterdayStr) {
+      yesterdaySunset = new Date(daily.sunset[i]);
+    }
+  }
+  
+  // Determine which overnight window to use based on current time
+  // If before today's sunrise, use yesterday sunset -> today sunrise
+  // Otherwise, use today sunset -> tomorrow sunrise
+  
+  let start: Date;
+  let end: Date;
+  
+  if (todaySunrise && now < todaySunrise && yesterdaySunset) {
+    // It's before sunrise - show last night (yesterday sunset -> today sunrise)
+    start = yesterdaySunset;
+    end = todaySunrise;
+  } else if (todaySunset && tomorrowSunrise) {
+    // Show tonight (today sunset -> tomorrow sunrise)
+    start = todaySunset;
+    end = tomorrowSunrise;
+  } else {
+    // Fallback to fixed times if sun data missing
+    start = new Date(now);
+    start.setHours(18, 0, 0, 0);
+    end = new Date(now);
+    end.setDate(end.getDate() + 1);
+    end.setHours(7, 0, 0, 0);
+  }
+  
+  // Format hours for display (round to nearest hour)
+  const formatHourShort = (date: Date): string => {
+    const hours = date.getHours();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}${ampm}`;
+  };
+  
+  return {
+    start,
+    end,
+    startHour: formatHourShort(start),
+    endHour: formatHourShort(end),
+  };
 }
 
 function formatHour(isoString: string): string {
@@ -84,15 +189,13 @@ function formatHour(isoString: string): string {
 }
 
 async function fetchFromOpenMeteo(): Promise<OpenMeteoResponse> {
-  const { start, end } = getOvernightWindow();
-
-  const startDate = start.toISOString().split('T')[0];
-  const endDate = end.toISOString().split('T')[0];
+  const { startDate, endDate } = getDateRange();
 
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', LAT.toString());
   url.searchParams.set('longitude', LON.toString());
   url.searchParams.set('hourly', 'precipitation,wind_speed_10m,wind_gusts_10m,temperature_2m');
+  url.searchParams.set('daily', 'sunrise,sunset');
   url.searchParams.set('start_date', startDate);
   url.searchParams.set('end_date', endDate);
   url.searchParams.set('timezone', 'Europe/London');
@@ -111,7 +214,8 @@ async function fetchFromOpenMeteo(): Promise<OpenMeteoResponse> {
 function processWeatherData(
   data: OpenMeteoResponse
 ): Omit<WeatherResult, 'cached'> {
-  const { start, end } = getOvernightWindow();
+  // Get overnight window based on actual sunset/sunrise times
+  const { start, end, startHour, endHour } = getOvernightWindowFromSunTimes(data.daily);
 
   const hourlyData: HourlyData[] = [];
   const rainHours: string[] = [];
@@ -123,7 +227,7 @@ function processWeatherData(
   for (let i = 0; i < data.hourly.time.length; i++) {
     const time = new Date(data.hourly.time[i]);
 
-    // Filter to only overnight hours (6pm - 7am)
+    // Filter to only overnight hours (sunset to sunrise)
     if (time >= start && time <= end) {
       const precipitation = data.hourly.precipitation[i] || 0;
       const windSpeed = kmhToMph(data.hourly.wind_speed_10m[i] || 0);
@@ -162,17 +266,16 @@ function processWeatherData(
     ? temperatures.reduce((sum, t) => sum + t, 0) / temperatures.length 
     : 0;
 
-  // Balanced approach: multiple factors trigger stables recommendation
-  // - More than 4 hours of any rain, OR
-  // - More than 5mm total rain, OR
-  // - Sustained wind over 40mph, OR
-  // - Combined moderate conditions (>2mm rain AND wind >25mph)
+  // Use normal thresholds as default for processing
+  // The actual recommendation will be recalculated based on user's hardiness setting
+  const thresholds = THRESHOLDS.normal;
+  
   const rainPredicted = 
-    rainHours.length > 4 || 
-    totalRain > 5 || 
-    peakWindSpeed > 40 || 
-    (totalRain > 2 && peakWindSpeed > 25);
-  const windWarning = peakWindGust > WIND_GUST_THRESHOLD;
+    rainHours.length > thresholds.maxRainHours || 
+    totalRain > thresholds.maxTotalRain || 
+    peakWindSpeed > thresholds.maxSustainedWind || 
+    (totalRain > thresholds.combinedRainThreshold && peakWindSpeed > thresholds.combinedWindThreshold);
+  const windWarning = peakWindGust > thresholds.windGustThreshold;
   const recommendation = rainPredicted ? 'stables' : 'paddock';
 
   return {
@@ -188,6 +291,8 @@ function processWeatherData(
     minTemp: Math.round(minTemp * 10) / 10,
     maxTemp: Math.round(maxTemp * 10) / 10,
     avgTemp: Math.round(avgTemp * 10) / 10,
+    overnightStart: startHour,
+    overnightEnd: endHour,
   };
 }
 
@@ -252,6 +357,10 @@ export async function getWeatherData(
         ? temps.reduce((sum, t) => sum + t, 0) / temps.length
         : 0;
 
+      // Get overnight times from the cached hourly data
+      const firstHour = cached.hourlyBreakdown[0]?.hour || '4pm';
+      const lastHour = cached.hourlyBreakdown[cached.hourlyBreakdown.length - 1]?.hour || '8am';
+
       return {
         recommendation: cached.recommendation as 'stables' | 'paddock',
         rainPredicted: cached.rainPredicted,
@@ -266,6 +375,8 @@ export async function getWeatherData(
         minTemp: Math.round(minTemp * 10) / 10,
         maxTemp: Math.round(maxTemp * 10) / 10,
         avgTemp: Math.round(avgTemp * 10) / 10,
+        overnightStart: firstHour,
+        overnightEnd: lastHour,
       };
     }
   }
@@ -281,6 +392,25 @@ export async function getWeatherData(
     ...processedData,
     cached: false,
   };
+}
+
+// Calculate recommendation based on weather data and hardiness level
+export function calculateRecommendation(
+  weatherData: Pick<WeatherResult, 'rainHours' | 'totalRainMm' | 'peakWindSpeed' | 'peakWindGust'>,
+  hardiness: HorseHardiness
+): { recommendation: 'stables' | 'paddock'; rainPredicted: boolean; windWarning: boolean } {
+  const thresholds = THRESHOLDS[hardiness];
+  
+  const rainPredicted = 
+    weatherData.rainHours.length > thresholds.maxRainHours || 
+    weatherData.totalRainMm > thresholds.maxTotalRain || 
+    weatherData.peakWindSpeed > thresholds.maxSustainedWind || 
+    (weatherData.totalRainMm > thresholds.combinedRainThreshold && weatherData.peakWindSpeed > thresholds.combinedWindThreshold);
+  
+  const windWarning = weatherData.peakWindGust > thresholds.windGustThreshold;
+  const recommendation = rainPredicted ? 'stables' : 'paddock';
+  
+  return { recommendation, rainPredicted, windWarning };
 }
 
 export function canRefresh(): boolean {
