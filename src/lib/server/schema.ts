@@ -23,6 +23,7 @@ export interface HourlyData {
   windSpeed: number;
   windGust: number;
   hasRain: boolean;
+  temperature: number;
 }
 
 export type WeatherCacheSelect = typeof weatherCache.$inferSelect;

@@ -138,6 +138,9 @@
         peakWindGust={weather.peakWindGust}
         fetchedAt={weather.fetchedAt}
         cached={weather.cached}
+        minTemp={weather.minTemp}
+        maxTemp={weather.maxTemp}
+        avgTemp={weather.avgTemp}
       />
 
       <!-- Hourly Breakdown -->

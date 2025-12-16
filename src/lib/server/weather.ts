@@ -26,6 +26,7 @@ interface OpenMeteoResponse {
     precipitation: number[];
     wind_speed_10m: number[];
     wind_gusts_10m: number[];
+    temperature_2m: number[];
   };
 }
 
@@ -40,6 +41,9 @@ export interface WeatherResult {
   hourly: HourlyData[];
   fetchedAt: string;
   cached: boolean;
+  minTemp: number;
+  maxTemp: number;
+  avgTemp: number;
 }
 
 function getOvernightWindow(): { start: Date; end: Date } {
@@ -88,7 +92,7 @@ async function fetchFromOpenMeteo(): Promise<OpenMeteoResponse> {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', LAT.toString());
   url.searchParams.set('longitude', LON.toString());
-  url.searchParams.set('hourly', 'precipitation,wind_speed_10m,wind_gusts_10m');
+  url.searchParams.set('hourly', 'precipitation,wind_speed_10m,wind_gusts_10m,temperature_2m');
   url.searchParams.set('start_date', startDate);
   url.searchParams.set('end_date', endDate);
   url.searchParams.set('timezone', 'Europe/London');
@@ -111,6 +115,7 @@ function processWeatherData(
 
   const hourlyData: HourlyData[] = [];
   const rainHours: string[] = [];
+  const temperatures: number[] = [];
   let totalRain = 0;
   let peakWindSpeed = 0;
   let peakWindGust = 0;
@@ -123,6 +128,7 @@ function processWeatherData(
       const precipitation = data.hourly.precipitation[i] || 0;
       const windSpeed = kmhToMph(data.hourly.wind_speed_10m[i] || 0);
       const windGust = kmhToMph(data.hourly.wind_gusts_10m[i] || 0);
+      const temperature = data.hourly.temperature_2m[i] ?? 0;
       const hasRain = precipitation > RAIN_THRESHOLD;
 
       const hourStr = formatHour(data.hourly.time[i]);
@@ -134,7 +140,10 @@ function processWeatherData(
         windSpeed: Math.round(windSpeed),
         windGust: Math.round(windGust),
         hasRain,
+        temperature: Math.round(temperature * 10) / 10,
       });
+
+      temperatures.push(temperature);
 
       if (hasRain) {
         rainHours.push(hourStr);
@@ -145,6 +154,13 @@ function processWeatherData(
       peakWindGust = Math.max(peakWindGust, windGust);
     }
   }
+
+  // Calculate temperature stats
+  const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 0;
+  const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 0;
+  const avgTemp = temperatures.length > 0 
+    ? temperatures.reduce((sum, t) => sum + t, 0) / temperatures.length 
+    : 0;
 
   // Balanced approach: multiple factors trigger stables recommendation
   // - More than 4 hours of any rain, OR
@@ -169,6 +185,9 @@ function processWeatherData(
     rainHours,
     hourly: hourlyData,
     fetchedAt: new Date().toISOString(),
+    minTemp: Math.round(minTemp * 10) / 10,
+    maxTemp: Math.round(maxTemp * 10) / 10,
+    avgTemp: Math.round(avgTemp * 10) / 10,
   };
 }
 
@@ -223,6 +242,16 @@ export async function getWeatherData(
   if (!forceRefresh) {
     const cached = getCachedData();
     if (cached) {
+      // Calculate temperature stats from cached hourly data
+      const temps = cached.hourlyBreakdown
+        .map((h) => h.temperature)
+        .filter((t): t is number => t !== undefined && t !== null);
+      const minTemp = temps.length > 0 ? Math.min(...temps) : 0;
+      const maxTemp = temps.length > 0 ? Math.max(...temps) : 0;
+      const avgTemp = temps.length > 0
+        ? temps.reduce((sum, t) => sum + t, 0) / temps.length
+        : 0;
+
       return {
         recommendation: cached.recommendation as 'stables' | 'paddock',
         rainPredicted: cached.rainPredicted,
@@ -234,6 +263,9 @@ export async function getWeatherData(
         hourly: cached.hourlyBreakdown,
         fetchedAt: cached.fetchedAt,
         cached: true,
+        minTemp: Math.round(minTemp * 10) / 10,
+        maxTemp: Math.round(maxTemp * 10) / 10,
+        avgTemp: Math.round(avgTemp * 10) / 10,
       };
     }
   }

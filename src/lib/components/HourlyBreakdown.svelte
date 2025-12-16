@@ -73,6 +73,11 @@
                 </span>
               </div>
 
+              <!-- Temperature -->
+              <div class="w-16 shrink-0">
+                <span class="text-slate-200 font-medium tabular-nums">{hour.temperature}°</span>
+              </div>
+
               <!-- Rain -->
               <div class="flex items-center gap-2 min-w-[70px]">
                 {#if hour.hasRain}

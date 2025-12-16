@@ -5,9 +5,12 @@
     peakWindGust: number;
     fetchedAt: string;
     cached: boolean;
+    minTemp: number;
+    maxTemp: number;
+    avgTemp: number;
   }
 
-  let { totalRainMm, peakWindSpeed, peakWindGust, fetchedAt, cached }: Props =
+  let { totalRainMm, peakWindSpeed, peakWindGust, fetchedAt, cached, minTemp, maxTemp, avgTemp }: Props =
     $props();
 
   // Beaufort scale based on wind speed in mph
@@ -56,28 +59,30 @@
     </div>
   </div>
 
-  <!-- Peak Wind Speed -->
+  <!-- Wind (Combined) -->
   <div class="glass-card p-4 text-center">
-    <div class="text-slate-400 text-sm mb-1">Peak Wind</div>
-    <div class="text-2xl font-bold text-slate-100">
-      {peakWindSpeed}
-      <span class="text-sm font-normal text-slate-400">mph</span>
-    </div>
-  </div>
-
-  <!-- Peak Gusts -->
-  <div class="glass-card p-4 text-center">
-    <div class="text-slate-400 text-sm mb-1">Peak Gusts</div>
+    <div class="text-slate-400 text-sm mb-1">Wind / Gusts</div>
     <div
       class="text-2xl font-bold {peakWindGust > 31
         ? 'text-yellow-400'
         : 'text-slate-100'}"
     >
-      {Math.round(peakWindGust)}
+      {peakWindSpeed}<span class="text-slate-400">/</span>{Math.round(peakWindGust)}
       <span class="text-sm font-normal text-slate-400">mph</span>
     </div>
     <div class="text-xs text-slate-500 mt-1">
       Force {beaufort.scale} · {beaufort.description}
+    </div>
+  </div>
+
+  <!-- Temperature -->
+  <div class="glass-card p-4 text-center">
+    <div class="text-slate-400 text-sm mb-1">Temperature</div>
+    <div class="text-2xl font-bold text-slate-100">
+      {avgTemp}<span class="text-sm font-normal text-slate-400">°C</span>
+    </div>
+    <div class="text-xs text-slate-500 mt-1">
+      <span class="text-blue-400">{minTemp}°</span> - <span class="text-orange-400">{maxTemp}°</span>
     </div>
   </div>
 
